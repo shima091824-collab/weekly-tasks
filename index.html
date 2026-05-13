@@ -398,10 +398,28 @@
   .mc-cell:not(.other) { cursor: pointer; }
   .mc-cell:not(.other):hover { background: #f0f7ff; border-radius: 50%; }
 
+  /* ── リサイザー ── */
+  .day-resizer {
+    height: 10px;
+    cursor: row-resize;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .day-resizer::before {
+    content: '';
+    width: 36px;
+    height: 3px;
+    background: #ddd;
+    border-radius: 2px;
+    transition: background 0.15s;
+  }
+  .day-resizer:hover::before { background: #4f8ef7; }
+
   /* ── 日別メモ欄 ── */
   .day-memo-wrap {
-    padding: 4px 6px 6px;
-    border-top: 1px solid #f0f0f0;
+    padding: 0 6px 6px;
     flex-shrink: 0;
   }
   .day-memo {
@@ -416,7 +434,6 @@
     outline: none;
     line-height: 1.5;
     color: #555;
-    height: 192px;
   }
   .day-memo:focus { background: #fff; box-shadow: inset 0 0 0 1px #4f8ef7; }
   .day-memo::placeholder { color: #ccc; }
@@ -665,6 +682,7 @@ async function loadWeather() {
 // ── アプリ本体 ───────────────────────────────────────
 const DAYS_JA = ['月', '火', '水', '木', '金', '土', '日'];
 let weekOffset = 0;
+let memoHeight = parseInt(localStorage.getItem('memoHeight') || '192');
 let tasks = JSON.parse(localStorage.getItem('weeklyTasks') || '{}');
 let memos = JSON.parse(localStorage.getItem('weeklyMemos') || '{}');
 let recurring = JSON.parse(localStorage.getItem('weeklyRecurring') || '[]');
@@ -922,6 +940,7 @@ function render() {
         <div class="task-count" id="cnt-${key}">${list.length > 0 ? `${list.filter(t=>t.done).length}/${list.length}` : ''}</div>
       </div>
       <div class="task-list" id="list-${key}"></div>
+      <div class="day-resizer"></div>
       <div class="day-memo-wrap"><textarea class="day-memo" placeholder="メモ..."></textarea></div>`;
 
     board.appendChild(col);
@@ -931,6 +950,7 @@ function render() {
 
     const memoTA = col.querySelector('.day-memo');
     memoTA.value = memos[key] || '';
+    memoTA.style.height = memoHeight + 'px';
     memoTA.addEventListener('input', () => { memos[key] = memoTA.value; save(); });
     memoTA.addEventListener('click', e => e.stopPropagation());
 
@@ -1300,6 +1320,43 @@ document.getElementById('calToggle').addEventListener('click', () => {
 document.getElementById('calPrev').addEventListener('click', () => { calOffset--; renderMiniCal(); });
 document.getElementById('calNext').addEventListener('click', () => { calOffset++; renderMiniCal(); });
 renderMiniCal();
+
+// ── メモ欄リサイズ ──────────────────────────────────────
+let dragState = null;
+
+document.addEventListener('mousedown', e => {
+  const resizer = e.target.closest('.day-resizer');
+  if (!resizer) return;
+  e.preventDefault();
+  dragState = { startY: e.clientY, startH: memoHeight };
+});
+document.addEventListener('mousemove', e => {
+  if (!dragState) return;
+  const delta = dragState.startY - e.clientY;
+  memoHeight = Math.max(40, Math.min(480, dragState.startH + delta));
+  document.querySelectorAll('.day-memo').forEach(el => el.style.height = memoHeight + 'px');
+});
+document.addEventListener('mouseup', () => {
+  if (!dragState) return;
+  localStorage.setItem('memoHeight', memoHeight);
+  dragState = null;
+});
+document.addEventListener('touchstart', e => {
+  const resizer = e.target.closest('.day-resizer');
+  if (!resizer) return;
+  dragState = { startY: e.touches[0].clientY, startH: memoHeight };
+}, { passive: true });
+document.addEventListener('touchmove', e => {
+  if (!dragState) return;
+  const delta = dragState.startY - e.touches[0].clientY;
+  memoHeight = Math.max(40, Math.min(480, dragState.startH + delta));
+  document.querySelectorAll('.day-memo').forEach(el => el.style.height = memoHeight + 'px');
+}, { passive: true });
+document.addEventListener('touchend', () => {
+  if (!dragState) return;
+  localStorage.setItem('memoHeight', memoHeight);
+  dragState = null;
+});
 
 // 起動時: クラウドデータ＋天気を並列取得してから描画
 (async () => {
